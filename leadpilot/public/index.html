@@ -4,6 +4,13 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>AI Receptionist for Local Businesses</title>
 <meta name="description" content="A 24/7 AI receptionist on your website that answers questions and captures leads while you sleep. Live in 48 hours.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="AI Receptionist for Local Businesses">
+<meta property="og:description" content="A 24/7 AI receptionist on your website that answers questions and captures leads while you sleep. Live in 48 hours.">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="AI Receptionist for Local Businesses">
+<meta name="twitter:description" content="A 24/7 AI receptionist on your website that answers questions and captures leads while you sleep.">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"Service","name":"AI Receptionist for Local Businesses","serviceType":"AI chat receptionist and lead capture","provider":{"@type":"Organization","name":"LeadPilot AI"},"areaServed":"Worldwide","description":"A 24/7 AI receptionist chat widget for your website that answers visitor questions from your business info and captures leads.","offers":[{"@type":"Offer","name":"Starter","price":"97","priceCurrency":"USD"},{"@type":"Offer","name":"Growth","price":"197","priceCurrency":"USD"},{"@type":"Offer","name":"Pro","price":"397","priceCurrency":"USD"}]}</script>
 <link rel="stylesheet" href="/style.css">
 <style>
   header.top{display:flex;justify-content:space-between;align-items:center;padding:18px 0}
@@ -21,6 +28,10 @@
   .plan.best{border:2px solid var(--brand);position:relative}
   .plan.best:before{content:"Most popular";position:absolute;top:-12px;left:20px;background:var(--brand);color:#fff;font-size:12px;padding:2px 10px;border-radius:999px}
   details{border-bottom:1px solid var(--line);padding:14px 0}summary{font-weight:600;cursor:pointer}
+  html,body{overflow-x:hidden}
+  .ind{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+  .ind .card b{display:block;margin-bottom:4px}
+  @media(max-width:600px){.hero .btn{display:block;margin:0 0 10px;text-align:center}.hero{padding-top:32px}.hero p{font-size:17px}header.top .btn{padding:8px 12px}}
   footer{padding:32px 0;text-align:center;font-size:14px}
   #lead-form .row{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
   @media(max-width:600px){#lead-form .row{grid-template-columns:1fr}}
@@ -51,6 +62,27 @@
       <div class="card"><b>1. We train it on your business</b><p class="muted">Services, prices, hours, FAQs, policies. It only answers from what you tell it, so it never makes things up.</p></div>
       <div class="card"><b>2. It chats with your visitors</b><p class="muted">Friendly answers in your brand voice, in any language, and it guides people toward booking.</p></div>
       <div class="card"><b>3. You get the leads</b><p class="muted">Name, phone, email and what they need, sent to your inbox, CRM or phone, plus a private dashboard.</p></div>
+    </div>
+  </section>
+
+  <section id="industries">
+    <h2>Industries we serve</h2>
+    <div class="grid ind">
+      <div class="card"><b>Dentists</b><span class="muted">Answer cleaning and new-patient questions after hours and capture appointment requests.</span></div>
+      <div class="card"><b>Med spas</b><span class="muted">Explain treatments and pricing, then collect contact details from curious visitors.</span></div>
+      <div class="card"><b>Home services</b><span class="muted">Catch urgent plumbing, HVAC and repair requests when you are on a job.</span></div>
+      <div class="card"><b>Law firms</b><span class="muted">Handle first questions politely and collect case details for your intake team.</span></div>
+      <div class="card"><b>Real estate</b><span class="muted">Respond to listing and viewing enquiries instantly and capture buyer and seller leads.</span></div>
+      <div class="card"><b>Gyms</b><span class="muted">Share membership options and class times and turn browsers into trial sign-ups.</span></div>
+    </div>
+  </section>
+
+  <section id="live">
+    <h2>See it live</h2>
+    <div class="card" style="max-width:720px;margin:0 auto;text-align:center">
+      <p style="margin-top:0">Send us your website and we will build a free, working demo of the AI receptionist trained on your business: your services, your prices, your hours.</p>
+      <p class="muted">You get a private link to try it yourself and share with your team. No payment, no commitment.</p>
+      <a class="btn" href="#start">Request my free demo</a>
     </div>
   </section>
 

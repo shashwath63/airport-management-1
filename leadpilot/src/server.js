@@ -1,7 +1,8 @@
 import express from 'express';
 import path from 'node:path';
 import { timingSafeEqual } from 'node:crypto';
-import { bots, leads, usage, inquiries, stats, PLANS } from './db.js';
+import { bots, leads, usage, inquiries, prospects, monthReport, stats, PLANS } from './db.js';
+import { scrapeSite } from './scrape.js';
 import { chat, aiInfo } from './ai.js';
 
 const PORT = Number(process.env.PORT) || 3000;
@@ -145,6 +146,36 @@ admin.delete('/bots/:id', (req, res) => { bots.remove(req.params.id); res.json({
 admin.get('/bots/:id/leads', (req, res) => res.json(leads.forBot(req.params.id)));
 admin.get('/leads', (req, res) => res.json(leads.recent(100)));
 admin.get('/inquiries', (req, res) => res.json(inquiries.list()));
+admin.get('/bots/:id/report', (req, res) => {
+  const bot = bots.get(req.params.id);
+  if (!bot) return res.sendStatus(404);
+  const m = String(req.query.month || new Date().toISOString().slice(0, 7));
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(m)) return res.status(400).json({ error: 'month must be YYYY-MM' });
+  res.json({ business_name: bot.business_name, portal_url: withLinks(bot).portal_url, ...monthReport(bot.id, m) });
+});
+
+admin.post('/scrape', async (req, res) => {
+  try { res.json(await scrapeSite(req.body?.url)); }
+  catch (e) {
+    const msg = e.name === 'TimeoutError' ? 'the website took too long to respond' : e.message;
+    res.status(400).json({ error: msg });
+  }
+});
+
+const prospectWithLinks = (p) => ({ ...p, demo_url: p.bot_id ? `${PUBLIC_URL}/demo/${p.bot_id}` : null });
+const prospectId = (req) => (/^\d+$/.test(req.params.id) ? Number(req.params.id) : 0);
+admin.get('/prospects', (req, res) => res.json(prospects.list().map(prospectWithLinks)));
+admin.post('/prospects', (req, res) => {
+  try { res.status(201).json(prospectWithLinks(prospects.create(req.body || {}))); }
+  catch (e) { res.status(400).json({ error: e.message }); }
+});
+admin.put('/prospects/:id', (req, res) => {
+  const id = prospectId(req);
+  if (!prospects.get(id)) return res.sendStatus(404);
+  try { res.json(prospectWithLinks(prospects.update(id, req.body || {}))); }
+  catch (e) { res.status(400).json({ error: e.message }); }
+});
+admin.delete('/prospects/:id', (req, res) => { prospects.remove(prospectId(req)); res.json({ ok: true }); });
 app.use('/api/admin', admin);
 
 // ---------- pages ----------

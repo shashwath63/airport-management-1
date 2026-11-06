@@ -15,6 +15,12 @@
   dialog{border:0;border-radius:16px;padding:0;width:min(760px,calc(100vw - 24px));background:var(--bg);color:var(--fg)}
   dialog::backdrop{background:rgba(0,0,0,.5)}
   .row-actions{display:flex;gap:6px;flex-wrap:wrap}
+  .pipeline{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .pipeline span{font-size:13px}
+  .overdue{color:#dc2626;font-weight:700}
+  td select{width:auto;padding:5px 8px;font-size:13px}
+  textarea.copybox{min-height:260px;font-family:inherit;font-size:14px}
+  .scrape-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 0}
 </style>
 </head>
 <body>
@@ -33,10 +39,15 @@
     <div class="tabs">
       <button class="btn ghost sm active" data-tab="clients">Clients</button>
       <button class="btn ghost sm" data-tab="leads">All leads</button>
+      <button class="btn ghost sm" data-tab="prospects">Prospects</button>
       <button class="btn ghost sm" data-tab="inquiries">Sales inquiries</button>
     </div>
     <div id="tab-clients" class="card table-scroll"></div>
     <div id="tab-leads" class="card table-scroll" hidden></div>
+    <div id="tab-prospects" class="card" hidden>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div class="pipeline" id="pipeline"></div><button class="btn sm" id="new-prospect">+ Add prospect</button></div>
+      <div class="table-scroll" id="prospects-table"></div>
+    </div>
     <div id="tab-inquiries" class="card table-scroll" hidden></div>
   </div>
 </div>
@@ -46,7 +57,8 @@
   <div class="grid two">
     <div><label>Business name *</label><input name="business_name" required></div>
     <div><label>Industry</label><input name="industry" placeholder="dental clinic, gym, law firm…"></div>
-    <div><label>Website</label><input name="website" placeholder="https://"></div>
+    <div><label>Website</label><input name="website" placeholder="https://">
+      <div class="scrape-row"><button type="button" class="btn ghost sm" id="scrape-btn">Import from website</button><span class="muted" id="scrape-msg" style="font-size:13px"></span></div></div>
     <div><label>Business phone</label><input name="phone"></div>
     <div><label>Main goal for visitors</label><input name="goal" placeholder="book a free consultation"></div>
     <div><label>Booking link</label><input name="booking_url" placeholder="https://calendly.com/…"></div>
@@ -62,6 +74,38 @@
   <p class="muted" style="font-size:13px">Tip: paste their whole website text into Claude and ask it for a clean FAQ and price sheet, then paste that here.</p>
   <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button type="button" class="btn ghost" id="cancel">Cancel</button><button class="btn" id="save">Save</button></div>
 </form></dialog>
+
+<dialog id="prospect-dlg"><form id="prospect-form" method="dialog" style="padding:22px">
+  <h2 id="prospect-title" style="margin-top:0">Add prospect</h2>
+  <div class="grid two">
+    <div><label>Business name *</label><input name="business_name" required></div>
+    <div><label>Contact name</label><input name="contact_name"></div>
+    <div><label>Email</label><input name="email" type="email"></div>
+    <div><label>Phone</label><input name="phone"></div>
+    <div><label>Website</label><input name="website" placeholder="https://"></div>
+    <div><label>Niche</label><input name="niche" placeholder="dentist, plumber, gym…"></div>
+    <div><label>Status</label><select name="status"></select></div>
+    <div><label>Next follow-up</label><input name="next_follow_up" type="date"></div>
+  </div>
+  <label>Notes</label><textarea name="notes" style="min-height:100px"></textarea>
+  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button type="button" class="btn ghost" id="prospect-cancel">Cancel</button><button class="btn">Save</button></div>
+</form></dialog>
+
+<dialog id="outreach-dlg"><div style="padding:22px">
+  <h2 style="margin-top:0" id="outreach-title">Demo ready</h2>
+  <label>Demo link</label><pre id="outreach-demo"></pre>
+  <label>Outreach message (edit the [Your name] placeholder)</label>
+  <textarea id="outreach-text" class="copybox" readonly></textarea>
+  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button class="btn" data-copy="outreach-text">Copy message</button><button class="btn ghost" onclick="this.closest('dialog').close()">Close</button></div>
+</div></dialog>
+
+<dialog id="report-dlg"><div style="padding:22px">
+  <h2 style="margin-top:0" id="report-title">Monthly report</h2>
+  <label>Month</label><input type="month" id="report-month" style="max-width:220px">
+  <label>Email to the business owner</label>
+  <textarea id="report-text" class="copybox" readonly></textarea>
+  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button class="btn" data-copy="report-text">Copy email</button><button class="btn ghost" onclick="this.closest('dialog').close()">Close</button></div>
+</div></dialog>
 
 <dialog id="embed-dlg"><div style="padding:22px">
   <h2 style="margin-top:0" id="embed-title">Install</h2>
@@ -91,11 +135,12 @@ function boot() {
   api('/stats').then(function (s) {
     document.getElementById('login').hidden = true; document.getElementById('app').hidden = false;
     var k = [['MRR', '$' + s.mrr], ['ARR', '$' + (s.mrr * 12).toLocaleString()], ['Active clients', s.active_clients + ' / ' + s.clients],
-             ['Leads this month', s.leads_this_month], ['Leads total', s.leads_total], ['Messages this month', s.messages_this_month], ['Sales inquiries', s.inquiries]];
+             ['Leads this month', s.leads_this_month], ['Leads total', s.leads_total], ['Messages this month', s.messages_this_month], ['Sales inquiries', s.inquiries],
+             ['Follow-ups due', s.followups_due > 0 ? '<span class="overdue">' + s.followups_due + '</span>' : 0]];
     var ai = s.ai || {};
     k.push(['AI engine', '<span style="font-size:16px">' + esc(ai.provider || '?') + (ai.provider === 'demo' ? ' ⚠️' : '') + '</span><span class="muted" style="font-size:12px;display:block;font-weight:400">' + esc(ai.model || '') + '</span>']);
     document.getElementById('kpis').innerHTML = k.map(function (x) { return '<div class="card kpi"><span class="muted">' + x[0] + '</span><b>' + x[1] + '</b></div>'; }).join('');
-    loadBots();
+    loadBots(); loadProspects();
   }).catch(function () {});
 }
 
@@ -111,6 +156,7 @@ function loadBots() {
           '<td>' + (b.active ? '<span class="tag" style="background:#d1fae5;color:#065f46">active</span>' : '<span class="tag">paused</span>') + '</td>' +
           '<td class="row-actions"><button class="btn sm" data-act="install" data-id="' + b.id + '">Install / share</button>' +
           '<a class="btn sm ghost" target="_blank" href="' + esc(b.demo_url) + '">Demo</a>' +
+          '<button class="btn sm ghost" data-act="report" data-id="' + b.id + '">Report</button>' +
           '<button class="btn sm ghost" data-act="edit" data-id="' + b.id + '">Edit</button>' +
           '<button class="btn sm danger" data-act="del" data-id="' + b.id + '">Delete</button></td></tr>';
       }).join('') + '</tbody></table>';
@@ -122,6 +168,7 @@ document.getElementById('tab-clients').onclick = function (e) {
   var bot = BOTS.find(function (x) { return x.id === b.dataset.id; });
   if (b.dataset.act === 'edit') openForm(bot);
   if (b.dataset.act === 'install') showEmbed(bot);
+  if (b.dataset.act === 'report') openReport(bot);
   if (b.dataset.act === 'del' && confirm('Delete ' + bot.business_name + ' and all its leads? This cannot be undone.')) api('/bots/' + bot.id, { method: 'DELETE' }).then(boot);
 };
 
@@ -151,10 +198,149 @@ form.onsubmit = function (e) {
   });
 };
 
+// ---------- website import ----------
+document.getElementById('scrape-btn').onclick = function () {
+  var btn = this, msg = document.getElementById('scrape-msg'), url = form.elements.website.value.trim();
+  if (!url) { msg.textContent = 'Enter the website first.'; return; }
+  btn.disabled = true; msg.textContent = 'Reading website… this can take up to 30 seconds.';
+  api('/scrape', { method: 'POST', body: JSON.stringify({ url: url }) }).then(function (r) {
+    if (r.error) { msg.textContent = 'Could not import: ' + r.error; return; }
+    if (!r.text) { msg.textContent = 'No readable text found on that site.'; return; }
+    var k = form.elements.knowledge;
+    k.value = k.value.trim() ? k.value.trim() + '\n\n' + r.text : r.text;
+    msg.textContent = 'Imported ' + r.text.length.toLocaleString() + ' characters from ' + r.pages.length + ' page(s). Review and trim before saving.';
+  }).catch(function () { msg.textContent = 'Import failed. Check the address and try again.'; })
+    .then(function () { btn.disabled = false; });
+};
+
+// ---------- copy helper ----------
+document.addEventListener('click', function (e) {
+  var b = e.target.closest('button[data-copy]'); if (!b) return;
+  var ta = document.getElementById(b.dataset.copy), label = b.textContent;
+  function done(ok) { b.textContent = ok ? 'Copied!' : 'Press Ctrl+C to copy'; setTimeout(function () { b.textContent = label; }, 1800); }
+  function fallback() { ta.focus(); ta.select(); var ok = false; try { ok = document.execCommand('copy'); } catch (_) {} done(ok); }
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(ta.value).then(function () { done(true); }, fallback);
+  else fallback();
+});
+
+// ---------- monthly report ----------
+var reportBot = null;
+var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+function openReport(bot) {
+  reportBot = bot;
+  document.getElementById('report-title').textContent = 'Monthly report: ' + bot.business_name;
+  document.getElementById('report-month').value = new Date().toISOString().slice(0, 7);
+  loadReport();
+  document.getElementById('report-dlg').showModal();
+}
+function loadReport() {
+  var m = document.getElementById('report-month').value, ta = document.getElementById('report-text');
+  if (!m) return;
+  ta.value = 'Loading…';
+  api('/bots/' + reportBot.id + '/report?month=' + encodeURIComponent(m)).then(function (r) {
+    if (r.error) { ta.value = r.error; return; }
+    var name = MONTHS[Number(m.slice(5, 7)) - 1] + ' ' + m.slice(0, 4);
+    var lines = ['Subject: Your AI receptionist results for ' + name, '', 'Hi ' + reportBot.business_name + ' team,', '',
+      'Your AI receptionist handled ' + r.conversations + ' conversation' + (r.conversations === 1 ? '' : 's') + ' (' + r.messages + ' messages) and captured ' +
+      r.leads_count + ' lead' + (r.leads_count === 1 ? '' : 's') + ' in ' + name + '.', ''];
+    if (r.leads.length) {
+      lines.push('Leads captured:');
+      r.leads.forEach(function (l) { lines.push('- ' + (l.name || 'Unnamed visitor') + (l.need ? ': ' + l.need : '')); });
+      lines.push('');
+    }
+    lines.push('You can see every lead with full contact details, and download them as a spreadsheet, in your private portal:', r.portal_url, '',
+      'If you have questions or want to tweak what the assistant says, just reply to this email.', '', 'Best,', '[Your name]');
+    ta.value = lines.join('\n');
+  }).catch(function () { ta.value = 'Could not load the report.'; });
+}
+document.getElementById('report-month').onchange = loadReport;
+
+// ---------- prospects ----------
+var PROSPECTS = [], editingProspect = null;
+var STATUSES = [['new', 'New', '#e0e7ff', '#3730a3'], ['demo_sent', 'Demo sent', '#fef3c7', '#92400e'], ['replied', 'Replied', '#cffafe', '#155e75'],
+  ['trial', 'Trial', '#ede9fe', '#5b21b6'], ['won', 'Won', '#d1fae5', '#065f46'], ['lost', 'Lost', '#fee2e2', '#991b1b']];
+function statusInfo(s) { return STATUSES.find(function (x) { return x[0] === s; }) || STATUSES[0]; }
+function today() { var d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); }
+var pform = document.getElementById('prospect-form'), pdlg = document.getElementById('prospect-dlg');
+pform.elements.status.innerHTML = STATUSES.map(function (s) { return '<option value="' + s[0] + '">' + s[1] + '</option>'; }).join('');
+
+function loadProspects() {
+  api('/prospects').then(function (rows) {
+    PROSPECTS = rows;
+    var counts = {}; rows.forEach(function (p) { counts[p.status] = (counts[p.status] || 0) + 1; });
+    document.getElementById('pipeline').innerHTML = STATUSES.map(function (s) {
+      return '<span class="tag" style="background:' + s[2] + ';color:' + s[3] + '">' + s[1] + ': <b>' + (counts[s[0]] || 0) + '</b></span>';
+    }).join('');
+    var el = document.getElementById('prospects-table'), t = today();
+    if (!rows.length) { el.innerHTML = '<p class="muted">No prospects yet. Add the businesses you plan to contact.</p>'; return; }
+    el.innerHTML = '<table><thead><tr><th>Business</th><th>Contact</th><th>Status</th><th>Follow-up</th><th></th></tr></thead><tbody>' +
+      rows.map(function (p) {
+        var si = statusInfo(p.status), due = p.next_follow_up && p.next_follow_up <= t && p.status !== 'won' && p.status !== 'lost';
+        var opts = STATUSES.map(function (s) { return '<option value="' + s[0] + '"' + (s[0] === p.status ? ' selected' : '') + '>' + s[1] + '</option>'; }).join('');
+        return '<tr><td><b>' + esc(p.business_name) + '</b><br><span class="muted" style="font-size:13px">' + esc(p.niche) + '</span></td>' +
+          '<td>' + esc(p.contact_name) + '<br><span class="muted" style="font-size:13px">' + esc(p.email) + ' ' + esc(p.phone) + '</span></td>' +
+          '<td><span class="tag" style="background:' + si[2] + ';color:' + si[3] + '">' + si[1] + '</span><br><select data-pstatus="' + p.id + '">' + opts + '</select></td>' +
+          '<td' + (due ? ' class="overdue"' : '') + '>' + (p.next_follow_up ? esc(p.next_follow_up) + (due ? ' (due)' : '') : '<span class="muted">-</span>') + '</td>' +
+          '<td class="row-actions"><button class="btn sm" data-pact="demo" data-id="' + p.id + '">' + (p.bot_id ? 'Demo &amp; message' : 'Create demo bot') + '</button>' +
+          '<button class="btn sm ghost" data-pact="edit" data-id="' + p.id + '">Edit</button>' +
+          '<button class="btn sm danger" data-pact="del" data-id="' + p.id + '">Delete</button></td></tr>';
+      }).join('') + '</tbody></table>';
+  });
+}
+function openProspectForm(p) {
+  editingProspect = p || null; pform.reset();
+  document.getElementById('prospect-title').textContent = p ? 'Edit ' + p.business_name : 'Add prospect';
+  if (p) Array.from(pform.elements).forEach(function (el) { if (el.name && p[el.name] != null) el.value = p[el.name]; });
+  pdlg.showModal();
+}
+document.getElementById('new-prospect').onclick = function () { openProspectForm(null); };
+document.getElementById('prospect-cancel').onclick = function () { pdlg.close(); };
+pform.onsubmit = function (e) {
+  e.preventDefault();
+  var data = Object.fromEntries(new FormData(pform));
+  api(editingProspect ? '/prospects/' + editingProspect.id : '/prospects', { method: editingProspect ? 'PUT' : 'POST', body: JSON.stringify(data) }).then(function (r) {
+    if (r.error) return alert(r.error);
+    pdlg.close(); boot();
+  });
+};
+document.getElementById('prospects-table').onchange = function (e) {
+  var id = e.target.dataset.pstatus; if (!id) return;
+  api('/prospects/' + id, { method: 'PUT', body: JSON.stringify({ status: e.target.value }) }).then(function (r) { if (r.error) alert(r.error); boot(); });
+};
+document.getElementById('prospects-table').onclick = function (e) {
+  var b = e.target.closest('button[data-pact]'); if (!b) return;
+  var p = PROSPECTS.find(function (x) { return String(x.id) === b.dataset.id; });
+  if (b.dataset.pact === 'edit') openProspectForm(p);
+  if (b.dataset.pact === 'del' && confirm('Delete prospect ' + p.business_name + '?')) api('/prospects/' + p.id, { method: 'DELETE' }).then(boot);
+  if (b.dataset.pact === 'demo') createDemo(p, b);
+};
+function outreachMessage(p, demo) {
+  return ['Subject: built something for ' + p.business_name, '', 'Hi ' + (p.contact_name || 'there') + ', I noticed ' + p.business_name + "'s website doesn't have a way to answer questions after hours, so people visiting at night probably just leave.", '',
+    'I built you a free AI receptionist trained on your services, prices and hours. Try it here (takes 30 seconds): ' + demo, '',
+    "If you like it, I can have it live on your site in 48 hours. If not, no worries, it's yours to play with.", '', '[Your name]'].join('\n');
+}
+function showOutreach(p, demo) {
+  document.getElementById('outreach-title').textContent = 'Demo for ' + p.business_name;
+  document.getElementById('outreach-demo').textContent = demo;
+  document.getElementById('outreach-text').value = outreachMessage(p, demo);
+  document.getElementById('outreach-dlg').showModal();
+}
+function createDemo(p, btn) {
+  function finish(botUrl) { showOutreach(p, botUrl + (p.website ? '?site=' + encodeURIComponent(p.website) : '')); boot(); }
+  if (p.bot_id && p.demo_url) return finish(p.demo_url);
+  btn.disabled = true; btn.textContent = 'Creating…';
+  api('/bots', { method: 'POST', body: JSON.stringify({ business_name: p.business_name, website: p.website, industry: p.niche }) }).then(function (bot) {
+    if (bot.error) { alert(bot.error); btn.disabled = false; btn.textContent = 'Create demo bot'; return; }
+    var upd = { bot_id: bot.id };
+    if (p.status === 'new') upd.status = 'demo_sent';
+    return api('/prospects/' + p.id, { method: 'PUT', body: JSON.stringify(upd) }).then(function () { finish(bot.demo_url); });
+  });
+}
+
 document.querySelector('.tabs').onclick = function (e) {
   var t = e.target.dataset.tab; if (!t) return;
   document.querySelectorAll('.tabs button').forEach(function (b) { b.classList.toggle('active', b.dataset.tab === t); });
-  ['clients', 'leads', 'inquiries'].forEach(function (n) { document.getElementById('tab-' + n).hidden = n !== t; });
+  ['clients', 'leads', 'prospects', 'inquiries'].forEach(function (n) { document.getElementById('tab-' + n).hidden = n !== t; });
   if (t === 'leads') api('/leads').then(function (rows) {
     document.getElementById('tab-leads').innerHTML = rows.length ? '<table><thead><tr><th>When</th><th>Client</th><th>Name</th><th>Contact</th><th>Needs</th><th>Urgency</th></tr></thead><tbody>' +
       rows.map(function (l) { return '<tr><td>' + esc(l.created_at) + '</td><td>' + esc(l.business_name) + '</td><td><b>' + esc(l.name) + '</b></td><td>' + esc(l.email) + '<br>' + esc(l.phone) + '</td><td>' + esc(l.need) + '</td><td>' + esc(l.urgency) + '</td></tr>'; }).join('') + '</tbody></table>'

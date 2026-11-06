@@ -1,6 +1,6 @@
-:root{--bg:#fff;--fg:#0f172a;--muted:#64748b;--line:#e2e8f0;--card:#f8fafc;--brand:#4f46e5;--brand2:#7c3aed;--ok:#059669}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b1020;--fg:#e2e8f0;--muted:#94a3b8;--line:#1e293b;--card:#111827}}
-:root[data-theme="dark"]{--bg:#0b1020;--fg:#e2e8f0;--muted:#94a3b8;--line:#1e293b;--card:#111827}
+:root{--bg:#fff;--fg:#0f172a;--muted:#64748b;--line:#e2e8f0;--card:#f8fafc;--brand:#4f46e5;--brand2:#7c3aed;--ok:#059669;--urgent-bg:#fee2e2;--urgent-fg:#991b1b;--soon-bg:#fef3c7;--soon-fg:#92400e;--bar:#4f46e5;--bar-bg:#e2e8f0}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b1020;--fg:#e2e8f0;--muted:#94a3b8;--line:#1e293b;--card:#111827;--urgent-bg:#450a0a;--urgent-fg:#fca5a5;--soon-bg:#451a03;--soon-fg:#fcd34d;--bar:#818cf8;--bar-bg:#1e293b}}
+:root[data-theme="dark"]{--bg:#0b1020;--fg:#e2e8f0;--muted:#94a3b8;--line:#1e293b;--card:#111827;--urgent-bg:#450a0a;--urgent-fg:#fca5a5;--soon-bg:#451a03;--soon-fg:#fcd34d;--bar:#818cf8;--bar-bg:#1e293b}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
 a{color:var(--brand)}
@@ -22,3 +22,10 @@ th{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--mute
 code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px}
 pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;white-space:pre-wrap;word-break:break-all}
 .table-scroll{overflow-x:auto}
+a:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+img,svg{max-width:100%}
+.tag.urgent{background:var(--urgent-bg);color:var(--urgent-fg)}
+.tag.soon{background:var(--soon-bg);color:var(--soon-fg)}
+.progress{height:8px;border-radius:999px;background:var(--bar-bg);overflow:hidden;margin-top:8px}
+.progress>i{display:block;height:100%;background:var(--bar);border-radius:999px}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;animation:none!important;transition:none!important}}

@@ -45,6 +45,21 @@ db.exec(`
     name TEXT, email TEXT, business TEXT, website TEXT, message TEXT,
     created_at TEXT DEFAULT (datetime('now'))
   );
+  CREATE TABLE IF NOT EXISTS prospects (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    business_name TEXT NOT NULL,
+    contact_name TEXT DEFAULT '',
+    email TEXT DEFAULT '',
+    phone TEXT DEFAULT '',
+    website TEXT DEFAULT '',
+    niche TEXT DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'new',
+    bot_id TEXT,
+    notes TEXT DEFAULT '',
+    next_follow_up DATE,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
 `);
 
 export const PLANS = {
@@ -102,6 +117,7 @@ export const bots = {
   remove(botId) {
     db.prepare('DELETE FROM leads WHERE bot_id = ?').run(botId);
     db.prepare('DELETE FROM usage WHERE bot_id = ?').run(botId);
+    db.prepare('UPDATE prospects SET bot_id = NULL WHERE bot_id = ?').run(botId);
     db.prepare('DELETE FROM bots WHERE id = ?').run(botId);
   },
 };
@@ -134,6 +150,61 @@ export const inquiries = {
   list: () => db.prepare('SELECT * FROM inquiries ORDER BY id DESC').all(),
 };
 
+export const PROSPECT_STATUSES = ['new', 'demo_sent', 'replied', 'trial', 'won', 'lost'];
+const PROSPECT_TEXT = ['business_name', 'contact_name', 'email', 'phone', 'website', 'niche', 'notes'];
+
+function cleanProspect(input) {
+  const out = {};
+  for (const f of PROSPECT_TEXT) {
+    if (input[f] !== undefined) out[f] = String(input[f] ?? '').trim().slice(0, f === 'notes' ? 5000 : 500);
+  }
+  if (input.status !== undefined) {
+    if (!PROSPECT_STATUSES.includes(input.status)) throw new Error('invalid status');
+    out.status = input.status;
+  }
+  if (input.next_follow_up !== undefined) {
+    const d = input.next_follow_up;
+    if (d === null || d === '') out.next_follow_up = null;
+    else if (/^\d{4}-\d{2}-\d{2}$/.test(d) && !Number.isNaN(Date.parse(d))) out.next_follow_up = d;
+    else throw new Error('next_follow_up must be YYYY-MM-DD');
+  }
+  if (input.bot_id !== undefined) out.bot_id = input.bot_id ? String(input.bot_id).slice(0, 50) : null;
+  return out;
+}
+
+export const prospects = {
+  list: () => db.prepare(`SELECT * FROM prospects ORDER BY
+    (next_follow_up IS NULL), next_follow_up, id DESC`).all(),
+  get: (pid) => db.prepare('SELECT * FROM prospects WHERE id = ?').get(pid),
+  create(input) {
+    const data = cleanProspect(input);
+    if (!data.business_name) throw new Error('business_name is required');
+    const cols = Object.keys(data);
+    const r = db.prepare(`INSERT INTO prospects (${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')})`)
+      .run(...cols.map((c) => data[c]));
+    return prospects.get(r.lastInsertRowid);
+  },
+  update(pid, input) {
+    const data = cleanProspect(input);
+    if ('business_name' in data && !data.business_name) throw new Error('business_name is required');
+    const cols = Object.keys(data);
+    if (cols.length) {
+      db.prepare(`UPDATE prospects SET ${cols.map((c) => `${c} = ?`).join(',')}, updated_at = datetime('now') WHERE id = ?`)
+        .run(...cols.map((c) => data[c]), pid);
+    }
+    return prospects.get(pid);
+  },
+  remove: (pid) => db.prepare('DELETE FROM prospects WHERE id = ?').run(pid),
+};
+
+/** Usage + leads for one bot in a given YYYY-MM month. */
+export function monthReport(botId, m) {
+  const u = db.prepare('SELECT messages, conversations FROM usage WHERE bot_id = ? AND month = ?').get(botId, m)
+    ?? { messages: 0, conversations: 0 };
+  const rows = db.prepare(`SELECT * FROM leads WHERE bot_id = ? AND strftime('%Y-%m', created_at) = ? ORDER BY id`).all(botId, m);
+  return { month: m, conversations: u.conversations, messages: u.messages, leads_count: rows.length, leads: rows };
+}
+
 export function stats() {
   const all = bots.list();
   const active = all.filter((b) => b.active);
@@ -145,5 +216,7 @@ export function stats() {
     leads_this_month: db.prepare("SELECT COUNT(*) AS n FROM leads WHERE created_at >= date('now','start of month')").get().n,
     messages_this_month: all.reduce((s, b) => s + b.messages_this_month, 0),
     inquiries: db.prepare('SELECT COUNT(*) AS n FROM inquiries').get().n,
+    followups_due: db.prepare(`SELECT COUNT(*) AS n FROM prospects WHERE next_follow_up IS NOT NULL
+      AND next_follow_up <= date('now') AND status NOT IN ('won','lost')`).get().n,
   };
 }

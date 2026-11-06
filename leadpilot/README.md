@@ -9,7 +9,7 @@ A white-label **AI receptionist** you sell to local businesses for a monthly fee
 | URL | What it is | Who uses it |
 |---|---|---|
 | `/` | Sales landing page with pricing, FAQ and a demo-request form | Your prospects |
-| `/admin` | Create a bot per client, see MRR, leads and inquiries | You |
+| `/admin` | Create a bot per client (with **one-click import from their website**), track prospects and follow-ups, see MRR and leads, and generate monthly client reports | You |
 | `/demo/<botId>` | Live demo page for one bot (add `?site=https://their-site.com` to show their site behind it) | Prospects you're pitching |
 | `/portal/<secret>` | Private, read-only lead dashboard + CSV export | Each paying client |
 | `/widget.js` | The embeddable chat widget (style-isolated, mobile-friendly) | Your clients' website visitors |
@@ -53,9 +53,15 @@ Set `PUBLIC_URL` to your real domain, because the embed codes and demo links use
 
 ## Daily workflow
 
-1. `/admin` → **+ New client bot** → paste the business info (services, prices, hours, FAQs).
+0. **Prospects** tab → add a business you want to pitch → **Create demo bot** gives you a demo link plus a ready-to-send outreach message. Set a follow-up date; due follow-ups show in red.
+1. `/admin` → **+ New client bot** → **Import from website** (or paste the business info), then review it.
 2. **Install / share** gives you three things: the embed code for their site, the demo link to pitch with, and their private portal link.
 3. Leads show up in the admin, in their portal, and (optionally) at their webhook.
+4. Each month, click **Report** on a client for a ready-to-copy email showing their conversations and leads. This is what keeps them paying.
+
+## Tests
+
+`npm test` runs the test suite (Node's built-in runner, no extra dependencies). GitHub Actions runs it on every change to `leadpilot/`.
 
 ## Configuration
 

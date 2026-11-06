@@ -1,0 +1,27 @@
+name: LeadPilot CI
+
+on:
+  push:
+    paths:
+      - 'leadpilot/**'
+      - '.github/workflows/leadpilot.yml'
+  pull_request:
+    paths:
+      - 'leadpilot/**'
+      - '.github/workflows/leadpilot.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: leadpilot
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: leadpilot/package-lock.json
+      - run: npm ci
+      - run: npm test

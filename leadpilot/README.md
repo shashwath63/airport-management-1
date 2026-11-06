@@ -1,6 +1,6 @@
 # LeadPilot AI
 
-A white-label **AI receptionist** you sell to local businesses for a monthly fee. One line of code puts a chat widget on any website. Powered by Claude, it answers visitors' questions from the business's own info, guides them to book, and **captures their name/phone/email as leads**.
+A white-label **AI receptionist** you sell to local businesses for a monthly fee. One line of code puts a chat widget on any website. Powered by AI (free Groq/Gemini models to start, Claude when you're ready), it answers visitors' questions from the business's own info, guides them to book, and **captures their name/phone/email as leads**.
 
 **Read [PLAYBOOK.md](PLAYBOOK.md) for how to sell it.** The code is the easy half.
 
@@ -20,12 +20,27 @@ Features: per-client knowledge, tone, goal, booking link and brand color · AI l
 
 ```bash
 cd leadpilot
-cp .env.example .env        # set ANTHROPIC_API_KEY and ADMIN_PASSWORD
+cp .env.example .env        # set ADMIN_PASSWORD (+ a free GROQ_API_KEY for real AI)
 npm install
 npm start                   # http://localhost:3000, admin at /admin
 ```
 
 Requires Node.js 22.5+ (it uses the built-in `node:sqlite`, so there's no database to install).
+
+## AI engine: start free, upgrade later
+
+| Mode | Cost | Setup | Quality |
+|---|---|---|---|
+| **Demo mode** (default, no key) | $0 | nothing | Keyword matching on the business info. Fine for showing prospects, not for live clients |
+| **Groq** (`GROQ_API_KEY`) | Free tier | 2-min signup at console.groq.com | Good: real AI (Llama 3.3 70B), very fast |
+| **Google Gemini** (`GEMINI_API_KEY`) | Free tier | Google account at aistudio.google.com | Good |
+| **OpenRouter** (`OPENROUTER_API_KEY`) | Free `:free` models | openrouter.ai | Varies by model |
+| **Ollama** (`AI_PROVIDER=ollama`) | Free, runs on your machine | Install Ollama | Depends on your hardware |
+| **Claude** (`ANTHROPIC_API_KEY`) | Paid per message | console.anthropic.com | Best. Switch once clients are paying |
+
+The app picks whichever key it finds (Claude → Groq → Gemini → OpenRouter → demo). The admin dashboard shows which engine is active. Leads are captured server-side too, so even a model that forgets to call the lead tool won't lose a lead.
+
+Free tiers have rate limits and their terms can change. Check the provider's limits before putting many clients on one free key.
 
 ## Deploy (pick one)
 
@@ -46,16 +61,19 @@ Set `PUBLIC_URL` to your real domain, because the embed codes and demo links use
 
 See `.env.example`. Notable settings:
 
-- `LEADPILOT_MODEL`: defaults to `claude-opus-5-5`. Set `claude-haiku-5-5` for much lower cost per message.
-- `LEADPILOT_EFFORT`: `low` by default for fast chat replies.
-- Refusal fallback is enabled server-side (`fallbacks: "default"`), so a declined request is retried automatically on a suitable model.
+- `AI_PROVIDER` / `AI_MODEL`: choose the engine and model (see the table above). With Claude the default is `claude-opus-5-5`; `claude-haiku-5-5` costs much less per message.
+- `LEADPILOT_EFFORT`: Claude only, `low` by default for fast chat replies.
+- On Claude, refusal fallback is enabled server-side (`fallbacks: "default"`).
 
 ## Project layout
 
 ```
 leadpilot/
   src/server.js   Express app: widget API, admin API, portal, pages
-  src/ai.js       Claude integration: system prompt + capture_lead tool loop
+  src/ai.js       picks the AI provider; server-side lead-capture safety net
+  src/prompt.js   shared system prompt + lead tool definition
+  src/providers/  anthropic.js (Claude), openai-compatible.js (Groq/Gemini/OpenRouter/Ollama), demo.js (no key)
+  src/leadExtract.js  pulls name/phone/email out of visitor messages
   src/db.js       SQLite schema and queries (bots, leads, usage, inquiries)
   public/         landing, admin, demo, portal pages + widget.js
 ```

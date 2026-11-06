@@ -70,7 +70,10 @@ This converts dramatically better than any pitch, because they see it working on
 - Install: send them the embed code, or ask for website access and do it yourself (WordPress: "Insert Headers and Footers" plugin; Wix: Settings → Custom Code; Shopify: theme.liquid; Squarespace: Code Injection).
 - Leads to their phone: create a free Zapier "Catch Hook" → paste the URL in the bot's **webhook** field → Zap to Gmail / SMS / their CRM.
 
-## 6. Unit economics (rough, verify in your Anthropic console)
+## 6. Unit economics (rough, verify in your provider's console)
+
+**Start at $0:** run on a free Groq or Gemini key while you land your first clients. Move to Claude when revenue covers it. It's one line in `.env`.
+
 
 A chat message is roughly 2–4k input tokens (business info + conversation) plus a few hundred output tokens.
 

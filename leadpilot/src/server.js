@@ -2,7 +2,7 @@ import express from 'express';
 import path from 'node:path';
 import { timingSafeEqual } from 'node:crypto';
 import { bots, leads, usage, inquiries, stats, PLANS } from './db.js';
-import { chat } from './ai.js';
+import { chat, aiInfo } from './ai.js';
 
 const PORT = Number(process.env.PORT) || 3000;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
@@ -131,7 +131,7 @@ app.get('/api/portal/:token/leads.csv', (req, res) => {
 // ---------- admin API (you, the operator) ----------
 const admin = express.Router();
 admin.use(requireAdmin);
-admin.get('/stats', (req, res) => res.json({ ...stats(), plans: PLANS }));
+admin.get('/stats', (req, res) => res.json({ ...stats(), plans: PLANS, ai: aiInfo }));
 admin.get('/bots', (req, res) => res.json(bots.list().map(withLinks)));
 admin.post('/bots', (req, res) => {
   try { res.status(201).json(withLinks(bots.create(req.body || {}))); }
@@ -161,4 +161,7 @@ app.get('/demo/:botId', (req, res) => res.sendFile(path.join(pub, 'demo.html')))
 app.get('/portal/:token', (req, res) => res.sendFile(path.join(pub, 'portal.html')));
 app.use(express.static(pub, { extensions: ['html'] }));
 
-app.listen(PORT, () => console.log(`LeadPilot running on ${PUBLIC_URL}  (admin: ${PUBLIC_URL}/admin)`));
+app.listen(PORT, () => {
+  console.log(`LeadPilot running on ${PUBLIC_URL}  (admin: ${PUBLIC_URL}/admin)`);
+  console.log(`AI provider: ${aiInfo.provider} / ${aiInfo.model}${aiInfo.provider === 'demo' ? '  (no API key found; add a free GROQ_API_KEY or GEMINI_API_KEY for real AI)' : ''}`);
+});

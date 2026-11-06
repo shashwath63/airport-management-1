@@ -92,6 +92,8 @@ function boot() {
     document.getElementById('login').hidden = true; document.getElementById('app').hidden = false;
     var k = [['MRR', '$' + s.mrr], ['ARR', '$' + (s.mrr * 12).toLocaleString()], ['Active clients', s.active_clients + ' / ' + s.clients],
              ['Leads this month', s.leads_this_month], ['Leads total', s.leads_total], ['Messages this month', s.messages_this_month], ['Sales inquiries', s.inquiries]];
+    var ai = s.ai || {};
+    k.push(['AI engine', '<span style="font-size:16px">' + esc(ai.provider || '?') + (ai.provider === 'demo' ? ' ⚠️' : '') + '</span><span class="muted" style="font-size:12px;display:block;font-weight:400">' + esc(ai.model || '') + '</span>']);
     document.getElementById('kpis').innerHTML = k.map(function (x) { return '<div class="card kpi"><span class="muted">' + x[0] + '</span><b>' + x[1] + '</b></div>'; }).join('');
     loadBots();
   }).catch(function () {});

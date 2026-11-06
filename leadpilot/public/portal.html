@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lead Dashboard</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="wrap" style="padding-top:28px;padding-bottom:40px">
+  <h1 id="biz" style="margin:0">Your leads</h1>
+  <p class="muted">Every visitor your AI receptionist captured. This link is private, so don't share it.</p>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin:20px 0">
+    <div class="card"><div class="muted">Total leads</div><div id="k-leads" style="font-size:32px;font-weight:800">–</div></div>
+    <div class="card"><div class="muted">Conversations this month</div><div id="k-conv" style="font-size:32px;font-weight:800">–</div></div>
+    <div class="card"><div class="muted">Messages used</div><div id="k-msg" style="font-size:32px;font-weight:800">–</div>
+      <div class="progress" role="progressbar" aria-label="Messages used this month" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="usage-bar"><i id="usage-fill" style="width:0"></i></div>
+      <div class="muted" id="usage-pct" style="font-size:12px;margin-top:4px"></div></div>
+  </div>
+  <div class="card" style="margin-bottom:20px">
+    <b>Leads per week</b> <span class="muted" style="font-size:13px">(last 8 weeks)</span>
+    <div id="chart" style="margin-top:12px"></div>
+  </div>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+    <input id="q" type="search" placeholder="Search leads by name, phone, email or need…" aria-label="Search leads" style="flex:1;min-width:200px;max-width:420px">
+    <a id="csv" class="btn sm ghost">Download CSV</a>
+  </div>
+  <div class="card table-scroll"><table><thead><tr><th>When</th><th>Name</th><th>Contact</th><th>Needs</th><th>Urgency</th></tr></thead><tbody id="rows"></tbody></table></div>
+</div>
+<script>
+  var token = location.pathname.split('/').filter(Boolean).pop();
+  var leads = [];
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
+  function attr(s) { return esc(s).replace(/"/g, '&quot;'); }
+  document.getElementById('csv').href = '/api/portal/' + token + '/leads.csv';
+
+  function parseDate(s) {
+    if (!s) return null;
+    var d = new Date(/Z|[+-]\d\d:?\d\d$/.test(s) ? s : String(s).replace(' ', 'T') + 'Z');
+    return isNaN(d) ? null : d;
+  }
+  function urgencyTag(u) {
+    var v = String(u || '').toLowerCase().replace(/[\s-]+/g, '_');
+    var cls = v === 'today' ? ' urgent' : v === 'this_week' ? ' soon' : '';
+    return '<span class="tag' + cls + '">' + esc(u ? String(u).replace(/_/g, ' ') : '—') + '</span>';
+  }
+  function contact(l) {
+    var out = [];
+    if (l.email) out.push('<a href="mailto:' + attr(l.email) + '">' + esc(l.email) + '</a>');
+    if (l.phone) out.push('<a href="tel:' + attr(String(l.phone).replace(/[^\d+]/g, '')) + '">' + esc(l.phone) + '</a>');
+    return out.join('<br>') || '<span class="muted">—</span>';
+  }
+  function drawRows() {
+    var q = document.getElementById('q').value.trim().toLowerCase();
+    var list = !q ? leads : leads.filter(function (l) {
+      return [l.name, l.email, l.phone, l.need, l.urgency].join(' ').toLowerCase().indexOf(q) !== -1;
+    });
+    document.getElementById('rows').innerHTML = list.length ? list.map(function (l) {
+      return '<tr><td>' + esc(l.created_at) + '</td><td><b>' + esc(l.name) + '</b></td><td>' + contact(l) +
+        '</td><td>' + esc(l.need) + '</td><td>' + urgencyTag(l.urgency) + '</td></tr>';
+    }).join('') : '<tr><td colspan="5" class="muted">' + (leads.length ? 'No leads match your search.' :
+      'No leads yet. They\'ll appear here the moment a visitor shares their details.') + '</td></tr>';
+  }
+  function drawChart() {
+    var WEEK = 7 * 864e5, now = Date.now(), counts = [0, 0, 0, 0, 0, 0, 0, 0];
+    leads.forEach(function (l) {
+      var d = parseDate(l.created_at); if (!d) return;
+      var age = Math.floor((now - d.getTime()) / WEEK);
+      if (age >= 0 && age < 8) counts[7 - age]++;
+    });
+    var max = Math.max.apply(null, counts.concat([1])), W = 480, H = 140, bw = 36, gap = (W - 8 * bw) / 9, svg = '';
+    counts.forEach(function (n, i) {
+      var h = Math.round((n / max) * (H - 36)), x = gap + i * (bw + gap), y = H - 20 - h;
+      var label = i === 7 ? 'This week' : (7 - i) + 'w ago';
+      svg += '<rect x="' + x + '" y="' + (n ? y : H - 21) + '" width="' + bw + '" height="' + (n ? h : 1) + '" rx="4" fill="var(--bar)"><title>' + label + ': ' + n + ' lead' + (n === 1 ? '' : 's') + '</title></rect>' +
+        '<text x="' + (x + bw / 2) + '" y="' + (n ? y - 5 : H - 26) + '" text-anchor="middle" font-size="12" fill="var(--fg)">' + n + '</text>' +
+        '<text x="' + (x + bw / 2) + '" y="' + (H - 4) + '" text-anchor="middle" font-size="10" fill="var(--muted)">' + (i === 7 ? 'now' : '-' + (7 - i) + 'w') + '</text>';
+    });
+    var total = counts.reduce(function (a, b) { return a + b; }, 0);
+    document.getElementById('chart').innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Leads per week, last 8 weeks: ' + counts.join(', ') + '" style="width:100%;max-width:560px;height:auto">' + svg + '</svg>' +
+      (total ? '' : '<div class="muted" style="font-size:13px">No leads in the last 8 weeks.</div>');
+  }
+  document.getElementById('q').oninput = drawRows;
+  fetch('/api/portal/' + token).then(function (r) { if (!r.ok) throw 0; return r.json(); }).then(function (d) {
+    leads = d.leads || [];
+    document.getElementById('biz').textContent = d.business_name + ': leads';
+    document.getElementById('k-leads').textContent = leads.length;
+    document.getElementById('k-conv').textContent = d.usage.conversations;
+    document.getElementById('k-msg').textContent = d.usage.messages + ' / ' + d.monthly_limit;
+    var pct = d.monthly_limit ? Math.min(100, Math.round(d.usage.messages / d.monthly_limit * 100)) : 0;
+    document.getElementById('usage-fill').style.width = pct + '%';
+    document.getElementById('usage-bar').setAttribute('aria-valuenow', pct);
+    document.getElementById('usage-pct').textContent = pct + '% of this month\'s messages used';
+    drawChart(); drawRows();
+  }).catch(function () { document.getElementById('biz').textContent = 'Dashboard not found'; });
+</script>
+</body>
+</html>

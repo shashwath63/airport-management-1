@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lead Dashboard</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="wrap" style="padding-top:28px;padding-bottom:40px">
+  <h1 id="biz" style="margin:0">Your leads</h1>
+  <p class="muted">Every visitor your AI receptionist captured. This link is private, so don't share it.</p>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin:20px 0">
+    <div class="card"><div class="muted">Total leads</div><div id="k-leads" style="font-size:32px;font-weight:800">–</div></div>
+    <div class="card"><div class="muted">Conversations this month</div><div id="k-conv" style="font-size:32px;font-weight:800">–</div></div>
+    <div class="card"><div class="muted">Messages used</div><div id="k-msg" style="font-size:32px;font-weight:800">–</div></div>
+  </div>
+  <p><a id="csv" class="btn sm ghost">Download CSV</a></p>
+  <div class="card table-scroll"><table><thead><tr><th>When</th><th>Name</th><th>Contact</th><th>Needs</th><th>Urgency</th></tr></thead><tbody id="rows"></tbody></table></div>
+</div>
+<script>
+  var token = location.pathname.split('/').filter(Boolean).pop();
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
+  document.getElementById('csv').href = '/api/portal/' + token + '/leads.csv';
+  fetch('/api/portal/' + token).then(function (r) { if (!r.ok) throw 0; return r.json(); }).then(function (d) {
+    document.getElementById('biz').textContent = d.business_name + ': leads';
+    document.getElementById('k-leads').textContent = d.leads.length;
+    document.getElementById('k-conv').textContent = d.usage.conversations;
+    document.getElementById('k-msg').textContent = d.usage.messages + ' / ' + d.monthly_limit;
+    document.getElementById('rows').innerHTML = d.leads.length ? d.leads.map(function (l) {
+      return '<tr><td>' + esc(l.created_at) + '</td><td><b>' + esc(l.name) + '</b></td><td>' + esc(l.email) + '<br>' + esc(l.phone) +
+        '</td><td>' + esc(l.need) + '</td><td><span class="tag">' + esc(l.urgency) + '</span></td></tr>';
+    }).join('') : '<tr><td colspan="5" class="muted">No leads yet. They\'ll appear here the moment a visitor shares their details.</td></tr>';
+  }).catch(function () { document.getElementById('biz').textContent = 'Dashboard not found'; });
+</script>
+</body>
+</html>

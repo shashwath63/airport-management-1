@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LeadPilot Admin</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="/style.css">
+<style>
+  .kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin:16px 0}
+  .kpi b{display:block;font-size:28px}
+  .two{grid-template-columns:1fr 1fr;gap:0 14px}
+  @media(max-width:700px){.two{grid-template-columns:1fr}}
+  .tabs{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 16px}
+  .tabs button.active{background:var(--brand);color:#fff;border-color:var(--brand)}
+  dialog{border:0;border-radius:16px;padding:0;width:min(760px,calc(100vw - 24px));background:var(--bg);color:var(--fg)}
+  dialog::backdrop{background:rgba(0,0,0,.5)}
+  .row-actions{display:flex;gap:6px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div class="wrap" style="padding-top:24px;padding-bottom:48px">
+  <div id="login" class="card" style="max-width:380px;margin:80px auto">
+    <h2 style="margin-top:0">Admin login</h2>
+    <form id="login-form"><label>Admin password</label><input type="password" id="pw" autocomplete="current-password" required><p><button class="btn" style="width:100%">Sign in</button></p><p id="login-err" class="muted"></p></form>
+  </div>
+
+  <div id="app" hidden>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <h1 style="margin:0">LeadPilot Admin</h1>
+      <div><button class="btn" id="new-bot">+ New client bot</button> <button class="btn ghost sm" id="logout">Log out</button></div>
+    </div>
+    <div class="grid kpis" id="kpis"></div>
+    <div class="tabs">
+      <button class="btn ghost sm active" data-tab="clients">Clients</button>
+      <button class="btn ghost sm" data-tab="leads">All leads</button>
+      <button class="btn ghost sm" data-tab="inquiries">Sales inquiries</button>
+    </div>
+    <div id="tab-clients" class="card table-scroll"></div>
+    <div id="tab-leads" class="card table-scroll" hidden></div>
+    <div id="tab-inquiries" class="card table-scroll" hidden></div>
+  </div>
+</div>
+
+<dialog id="dlg"><form id="bot-form" method="dialog" style="padding:22px">
+  <h2 id="dlg-title" style="margin-top:0">New client bot</h2>
+  <div class="grid two">
+    <div><label>Business name *</label><input name="business_name" required></div>
+    <div><label>Industry</label><input name="industry" placeholder="dental clinic, gym, law firm…"></div>
+    <div><label>Website</label><input name="website" placeholder="https://"></div>
+    <div><label>Business phone</label><input name="phone"></div>
+    <div><label>Main goal for visitors</label><input name="goal" placeholder="book a free consultation"></div>
+    <div><label>Booking link</label><input name="booking_url" placeholder="https://calendly.com/…"></div>
+    <div><label>Tone</label><input name="tone" placeholder="friendly and professional"></div>
+    <div><label>Brand color</label><input name="color" type="color" value="#4f46e5" style="height:42px;padding:4px"></div>
+    <div><label>Plan</label><select name="plan"><option value="starter">Starter ($97)</option><option value="growth">Growth ($197)</option><option value="pro">Pro ($397)</option></select></div>
+    <div><label>Status</label><select name="active"><option value="1">Active</option><option value="0">Paused</option></select></div>
+  </div>
+  <label>Greeting message</label><input name="greeting" placeholder="Hi! Looking to book a cleaning? I can help 😊">
+  <label>Lead webhook URL (Zapier / Make / CRM, optional)</label><input name="webhook_url" placeholder="https://hooks.zapier.com/…">
+  <label>Business knowledge: services, prices, hours, location, FAQs, policies *</label>
+  <textarea name="knowledge" style="min-height:220px" placeholder="Paste everything from their website: services and prices, opening hours, address, parking, insurance accepted, cancellation policy, FAQs…"></textarea>
+  <p class="muted" style="font-size:13px">Tip: paste their whole website text into Claude and ask it for a clean FAQ and price sheet, then paste that here.</p>
+  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button type="button" class="btn ghost" id="cancel">Cancel</button><button class="btn" id="save">Save</button></div>
+</form></dialog>
+
+<dialog id="embed-dlg"><div style="padding:22px">
+  <h2 style="margin-top:0" id="embed-title">Install</h2>
+  <label>1. Embed code: paste before &lt;/body&gt; on the client's site</label><pre id="embed-code"></pre>
+  <label>2. Sales demo link: send this to the prospect</label><pre id="embed-demo"></pre>
+  <label>3. Client's private lead dashboard</label><pre id="embed-portal"></pre>
+  <div style="text-align:right"><button class="btn" onclick="this.closest('dialog').close()">Done</button></div>
+</div></dialog>
+
+<script>
+var KEY = sessionStorage.getItem('lp-admin') || '';
+var editing = null, BOTS = [];
+function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
+function api(path, opts) {
+  opts = opts || {};
+  opts.headers = Object.assign({ 'Content-Type': 'application/json', 'x-admin-key': KEY }, opts.headers || {});
+  return fetch('/api/admin' + path, opts).then(function (r) {
+    if (r.status === 401) { showLogin('Wrong password'); throw new Error('unauthorized'); }
+    return r.json();
+  });
+}
+function showLogin(err) { document.getElementById('login').hidden = false; document.getElementById('app').hidden = true; document.getElementById('login-err').textContent = err || ''; }
+document.getElementById('login-form').onsubmit = function (e) { e.preventDefault(); KEY = document.getElementById('pw').value; sessionStorage.setItem('lp-admin', KEY); boot(); };
+document.getElementById('logout').onclick = function () { sessionStorage.removeItem('lp-admin'); KEY = ''; showLogin(); };
+
+function boot() {
+  api('/stats').then(function (s) {
+    document.getElementById('login').hidden = true; document.getElementById('app').hidden = false;
+    var k = [['MRR', '$' + s.mrr], ['ARR', '$' + (s.mrr * 12).toLocaleString()], ['Active clients', s.active_clients + ' / ' + s.clients],
+             ['Leads this month', s.leads_this_month], ['Leads total', s.leads_total], ['Messages this month', s.messages_this_month], ['Sales inquiries', s.inquiries]];
+    document.getElementById('kpis').innerHTML = k.map(function (x) { return '<div class="card kpi"><span class="muted">' + x[0] + '</span><b>' + x[1] + '</b></div>'; }).join('');
+    loadBots();
+  }).catch(function () {});
+}
+
+function loadBots() {
+  api('/bots').then(function (bots) {
+    BOTS = bots;
+    var el = document.getElementById('tab-clients');
+    if (!bots.length) { el.innerHTML = '<p class="muted">No clients yet. Click <b>+ New client bot</b> to build your first demo.</p>'; return; }
+    el.innerHTML = '<table><thead><tr><th>Business</th><th>Plan</th><th>Leads</th><th>Msgs (mo)</th><th>Status</th><th></th></tr></thead><tbody>' +
+      bots.map(function (b) {
+        return '<tr><td><b>' + esc(b.business_name) + '</b><br><span class="muted" style="font-size:13px">' + esc(b.industry) + '</span></td>' +
+          '<td>' + esc(b.plan) + '</td><td>' + b.lead_count + '</td><td>' + b.messages_this_month + ' / ' + b.monthly_limit + '</td>' +
+          '<td>' + (b.active ? '<span class="tag" style="background:#d1fae5;color:#065f46">active</span>' : '<span class="tag">paused</span>') + '</td>' +
+          '<td class="row-actions"><button class="btn sm" data-act="install" data-id="' + b.id + '">Install / share</button>' +
+          '<a class="btn sm ghost" target="_blank" href="' + esc(b.demo_url) + '">Demo</a>' +
+          '<button class="btn sm ghost" data-act="edit" data-id="' + b.id + '">Edit</button>' +
+          '<button class="btn sm danger" data-act="del" data-id="' + b.id + '">Delete</button></td></tr>';
+      }).join('') + '</tbody></table>';
+  });
+}
+
+document.getElementById('tab-clients').onclick = function (e) {
+  var b = e.target.closest('button[data-act]'); if (!b) return;
+  var bot = BOTS.find(function (x) { return x.id === b.dataset.id; });
+  if (b.dataset.act === 'edit') openForm(bot);
+  if (b.dataset.act === 'install') showEmbed(bot);
+  if (b.dataset.act === 'del' && confirm('Delete ' + bot.business_name + ' and all its leads? This cannot be undone.')) api('/bots/' + bot.id, { method: 'DELETE' }).then(boot);
+};
+
+function showEmbed(b) {
+  document.getElementById('embed-title').textContent = 'Install: ' + b.business_name;
+  document.getElementById('embed-code').textContent = b.embed_code;
+  document.getElementById('embed-demo').textContent = b.demo_url + (b.website ? '?site=' + encodeURIComponent(b.website) : '');
+  document.getElementById('embed-portal').textContent = b.portal_url;
+  document.getElementById('embed-dlg').showModal();
+}
+
+var form = document.getElementById('bot-form'), dlg = document.getElementById('dlg');
+function openForm(bot) {
+  editing = bot || null; form.reset();
+  document.getElementById('dlg-title').textContent = bot ? 'Edit ' + bot.business_name : 'New client bot';
+  if (bot) Array.from(form.elements).forEach(function (el) { if (el.name && bot[el.name] != null) el.value = bot[el.name]; });
+  dlg.showModal();
+}
+document.getElementById('new-bot').onclick = function () { openForm(null); };
+document.getElementById('cancel').onclick = function () { dlg.close(); };
+form.onsubmit = function (e) {
+  e.preventDefault();
+  var data = Object.fromEntries(new FormData(form));
+  api(editing ? '/bots/' + editing.id : '/bots', { method: editing ? 'PUT' : 'POST', body: JSON.stringify(data) }).then(function (b) {
+    if (b.error) return alert(b.error);
+    dlg.close(); boot(); if (!editing) showEmbed(b);
+  });
+};
+
+document.querySelector('.tabs').onclick = function (e) {
+  var t = e.target.dataset.tab; if (!t) return;
+  document.querySelectorAll('.tabs button').forEach(function (b) { b.classList.toggle('active', b.dataset.tab === t); });
+  ['clients', 'leads', 'inquiries'].forEach(function (n) { document.getElementById('tab-' + n).hidden = n !== t; });
+  if (t === 'leads') api('/leads').then(function (rows) {
+    document.getElementById('tab-leads').innerHTML = rows.length ? '<table><thead><tr><th>When</th><th>Client</th><th>Name</th><th>Contact</th><th>Needs</th><th>Urgency</th></tr></thead><tbody>' +
+      rows.map(function (l) { return '<tr><td>' + esc(l.created_at) + '</td><td>' + esc(l.business_name) + '</td><td><b>' + esc(l.name) + '</b></td><td>' + esc(l.email) + '<br>' + esc(l.phone) + '</td><td>' + esc(l.need) + '</td><td>' + esc(l.urgency) + '</td></tr>'; }).join('') + '</tbody></table>'
+      : '<p class="muted">No leads yet.</p>';
+  });
+  if (t === 'inquiries') api('/inquiries').then(function (rows) {
+    document.getElementById('tab-inquiries').innerHTML = rows.length ? '<table><thead><tr><th>When</th><th>Name</th><th>Email</th><th>Business</th><th>Website</th><th>Message</th></tr></thead><tbody>' +
+      rows.map(function (i) { return '<tr><td>' + esc(i.created_at) + '</td><td>' + esc(i.name) + '</td><td>' + esc(i.email) + '</td><td>' + esc(i.business) + '</td><td>' + esc(i.website) + '</td><td>' + esc(i.message) + '</td></tr>'; }).join('') + '</tbody></table>'
+      : '<p class="muted">No inquiries yet. These come from the form on your landing page.</p>';
+  });
+};
+
+if (KEY) boot(); else showLogin();
+</script>
+</body>
+</html>
